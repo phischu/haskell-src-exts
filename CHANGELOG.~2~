@@ -1,0 +1,94 @@
+** 1.6.x
+
+1.6.0 --> 1.6.1
+===============
+
+* UnicodeSyntax now works not only for identifiers, but also for
+  ->, <- and =>, as well as Arrows arrows and kind stars.
+
+1.5.3 --> 1.6.0
+===============
+
+* (=~=) turns out to be too general at Functor (for intuitive and not
+  technical reasons), so is specialised to Annotated to closer mirror
+  the original intention.
+
+* applyFixities is hoisted to a monad, and now fails on ambiguous infix
+  expressions.
+
+** 1.5.x
+
+1.5.2 --> 1.5.3
+===============
+
+* Several small bug fixes in the exact printer, and fail more gracefully
+  if the number of srcInfoPoints doesn't match the needs of the node.
+
+1.5.1 --> 1.5.2
+===============
+
+* Fix a bug in the exact printer that made it always print the first token
+  at position (0,0).
+
+* In fixing the above, Annotated is now a superclass of ExactP. It was already
+  a superclass in spirit, and nothing can break from this since ExactP is only
+  exported abstractly.
+
+1.5.0 --> 1.5.1
+===============
+
+* The pretty printer now introduces parentheses for non-atomic arguments to
+  function application. Note that infix applications are left untouched, no
+  parentheses will be inserted there, as it is assumed that fixities are
+  already properly resolved.
+
+* Fix a bug in the pretty printer where view patterns and n+k patterns were
+  not properly parenthesised.
+
+1.4.0 --> 1.5.0
+===============
+
+* Add support for acting on LINE pragmas while parsing, i.e. updating the source
+  position according to info given in LINE pragmas. This is done conditionally
+  based on a new flag ignoreLinePragmas in the ParseMode, hence the need to
+  increase the major version.
+
+** 1.4.x
+
+1.3.5 --> 1.4.0
+===============
+
+* The AST node for Proc in the simple AST is changed to include a SrcLoc argument,
+  to make it consistent with similar nodes e.g. Lambda. This is specifically needed
+  for transformation of patterns in HSX.
+
+
+** 1.3.x
+
+1.3.4 --> 1.3.5
+===============
+
+* Added an entry point in the parser for statements, and an instance Parseable Stmt
+  to go with it.
+
+* Ensured that .Annotated exports all relevant parseXXX(WithYYY) functions.
+
+1.3.3 --> 1.3.4
+===============
+
+* Operator fixities are now resolved in patterns.
+
+1.3.2 --> 1.3.3
+===============
+
+* Fixes a bug where qualified keywords are rejected even if the extension that
+  enables the keyword in question is not turned on.
+
+
+1.3.0 --> 1.3.2
+===============
+
+(Let's forget 1.3.1 ever existed.)
+
+* Fix a bug where declarations of infix operators were not properly merged as FunBinds.
+
