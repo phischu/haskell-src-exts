@@ -511,10 +511,12 @@ shift/reduce-conflict, so we don't handle this case here, but in bodyaux.
 
 Requires the TypeFamilies extension enabled, but the lexer will handle
 that through the 'family' keyword.
->       | 'type' 'family' type optkind
+>       | 'type' 'family' type optkind where_type_family
 >                {% do { dh <- checkSimpleType $3;
 >                        let {l = nIS $1 <++> ann $3 <+?> (fmap ann) (fst $4) <** ($1:$2:snd $4)};
->                        return (TypeFamDecl l dh (fst $4)) } }
+>                        case $5 of {
+>                          Nothing    -> return (TypeFamDecl l dh (fst $4));
+>                          Just (x,a) -> return (ClosedTypeFamDecl (l <** [a]) dh (fst $4) x); }}}
 
 Here there is no special keyword so we must do the check.
 >       | 'type' 'instance' truedtype '=' truectype
@@ -603,6 +605,25 @@ lexer through the 'foreign' (and 'export') keyword.
 >       | '{-# WARNING'    warndeprs  '#-}'     { WarnPragmaDecl ($1 <^^> $3 <** ($1:snd $2++[$3])) $ reverse (fst $2) }
 >       | '{-# ANN'        annotation '#-}'     { AnnPragma      ($1 <^^> $3 <** [$1,$3]) $2 }
 >       | decl          { $1 }
+
+Parsing the body of a closed type family, partially stolen from the source of GHC.
+> where_type_family :: { Maybe ([TypeEqn L], S) }
+>         : {- empty -}                  { Nothing }
+>         | 'where' ty_fam_inst_eqn_list { Just ($2, $1) }
+
+> ty_fam_inst_eqn_list :: { [TypeEqn L] }
+>         : '{'  ty_fam_inst_eqns '}'     { $2 }
+>         | open ty_fam_inst_eqns close   { $2 }
+
+> ty_fam_inst_eqns :: { [TypeEqn L] }
+>         : ty_fam_inst_eqns ';' ty_fam_inst_eqn   { $1 ++ [$3] }
+>         | ty_fam_inst_eqns ';'                   { $1 }
+>         | ty_fam_inst_eqn                        { [$1] }
+
+> ty_fam_inst_eqn :: { TypeEqn L }
+>         : truedtype '=' truectype
+>                 {% do { checkEnabled TypeFamilies ;
+>                         return (TypeEqn (ann $1 <++> ann $3 <** [$2]) $1 $3) } }
 
 > data_or_newtype :: { DataOrNew L }
 >       : 'data'    { DataType $ nIS $1 }
@@ -776,7 +797,7 @@ Type equality contraints need the TypeFamilies extension.
 >       | btype qtyconop dtype          { TyInfix ($1 <> $3) $1 $2 $3 }
 >       | btype qtyvarop dtype          { TyInfix ($1 <> $3) $1 $2 $3 } -- FIXME
 >       | btype '->' ctype              { TyFun ($1 <> $3 <** [$2]) $1 $3 }
->       | btype '~' btype               {% do { checkEnabled TypeFamilies ;
+>       | btype '~' btype               {% do { checkEnabledOneOf [TypeFamilies, GADTs] ;
 >                                               let {l = $1 <> $3 <** [$2]};
 >                                               return $ TyPred l $ EqualP l $1 $3 } }
 
@@ -882,7 +903,7 @@ Equality constraints require the TypeFamilies extension.
 
 > context :: { PContext L }
 >       : btype '=>'                    {% checkPContext $ (amap (\l -> l <++> nIS $2 <** (srcInfoPoints l ++ [$2]))) $1 }
->       | btype '~' btype '=>'          {% do { checkEnabled TypeFamilies;
+>       | btype '~' btype '=>'          {% do { checkEnabledOneOf [TypeFamilies, GADTs];
 >                                               let {l = $1 <> $3 <** [$2,$4]};
 >                                               checkPContext (TyPred l $ EqualP l $1 $3) } }
 

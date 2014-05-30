@@ -1,6 +1,6 @@
 module Main (main) where
  
-{-# INLINE_CONLIKE size #-}
+{-# INLINE CONLIKE size #-}
  
 size :: Int
 size = 64

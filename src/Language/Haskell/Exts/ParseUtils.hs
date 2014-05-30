@@ -17,6 +17,7 @@
 module Language.Haskell.Exts.ParseUtils (
       splitTyConApp         -- PType -> P (Name,[Type])
     , checkEnabled          -- (Show e, Enabled e) => e -> P ()
+    , checkEnabledOneOf
     , checkToplevel         -- ??
     , checkPatternGuards    -- [Stmt] -> P ()
     , mkRecConstrOrUpdate   -- PExp -> [PFieldUpdate] -> P Exp
@@ -104,6 +105,12 @@ checkEnabled e = do
      then return ()
      else fail $ show e ++ " is not enabled"
 
+checkEnabledOneOf :: (Show e, Enabled e) => [e] -> P ()
+checkEnabledOneOf es = do
+    exts <- getExtensions
+    unless (any (`isEnabled` exts) es) $
+        fail $ (foldr1 (\x s -> x ++ " or " ++ s) . map show $ es) ++ " is not enabled"
+
 checkPatternGuards :: [Stmt L] -> P ()
 checkPatternGuards [Qualifier _ _] = return ()
 checkPatternGuards _ = checkEnabled PatternGuards
@@ -130,6 +137,24 @@ checkPContext (TyCon l (Special _ (UnitCon _))) =
 checkPContext (TyParen l t) = do
     c <- checkPContext t
     return $ CxParen l c
+checkPContext (TyPred _ p@(EqualP l _ _)) =
+  -- Depending on where EqualP is found, it may contain either 1 or 2 info
+  -- points.
+  --
+  -- If it's by itself, it contains two: one for the tilde, another for =>.
+  -- The => position is important to have in CxSingle, but for EqualP
+  -- itself it's not needed.
+  --
+  -- If it's parsed as an element of a tuple (a ~ b, ...), then it only
+  -- contains one info point. (But that case is handled in a different
+  -- branch.)
+  let
+    withInfoPoints f info = info {srcInfoPoints = f (srcInfoPoints info)}
+  in
+    return $
+      CxSingle (withInfoPoints (drop 1) l) $
+        amap (withInfoPoints $ take 1) p
+
 checkPContext t = do
     c <- checkAssertion t
     return $ CxSingle (ann c) c
@@ -141,7 +166,9 @@ checkPContext t = do
 checkAssertion :: PType L -> P (PAsst L)
 -- We cannot even get here unless ImplicitParameters is enabled.
 checkAssertion (TyPred _ p@(IParam _ _ _)) = return p
--- We cannot even get here unless TypeFamilies is enabled.
+-- We cannot even get here unless TypeFamilies or GADTs is enabled.
+-- N.B.: this is called only when the equality assertion is part of a
+-- tuple
 checkAssertion (TyPred _ p@(EqualP _ _ _)) = return p
 checkAssertion t = checkAssertion' id [] t
     where   -- class assertions must have at least one argument
