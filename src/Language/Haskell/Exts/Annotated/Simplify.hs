@@ -48,7 +48,7 @@ sModule md = case md of
          in S.Module loc1 mn (map sModulePragma oss) mwt mes (map sImportDecl ids)
                 (map sDecl ds ++ [pageFun loc2 $ S.XTag loc2 (sXName xn) (map sXAttr attrs) (fmap sExp mat) (map sExp es)])
   where pageFun :: SrcLoc -> S.Exp -> S.Decl
-        pageFun loc e = S.PatBind loc namePat Nothing rhs (S.BDecls [])
+        pageFun loc e = S.PatBind loc namePat rhs (S.BDecls [])
             where namePat = S.PVar $ S.Ident "page"
                   rhs = S.UnGuardedRhs e
 
@@ -95,8 +95,8 @@ sDecl decl = case decl of
      SpliceDecl   l sp          -> S.SpliceDecl (getPointLoc l) (sExp sp)
      TypeSig      l ns t        -> S.TypeSig (getPointLoc l) (map sName ns) (sType t)
      FunBind      _ ms          -> S.FunBind (map sMatch ms)
-     PatBind      l p mt rhs mbs    ->
-        S.PatBind (getPointLoc l) (sPat p) (fmap sType mt) (sRhs rhs) (maybe (S.BDecls []) sBinds mbs)
+     PatBind      l p rhs mbs    ->
+        S.PatBind (getPointLoc l) (sPat p) (sRhs rhs) (maybe (S.BDecls []) sBinds mbs)
      ForImp       l cc msaf mstr n t    ->
         S.ForImp (getPointLoc l) (sCallConv cc) (maybe (S.PlaySafe False) sSafety msaf) (maybe "" id mstr) (sName n) (sType t)
      ForExp       l cc      mstr n t    ->
@@ -363,7 +363,7 @@ sExp e = case e of
     Lambda l ps e       -> S.Lambda (getPointLoc l) (map sPat ps) (sExp e)
     Let _ bs e          -> S.Let (sBinds bs) (sExp e)
     If _ e1 e2 e3       -> S.If (sExp e1) (sExp e2) (sExp e3)
-    MultiIf _ alts      -> S.MultiIf (map sGuardedAlt alts)
+    MultiIf _ alts      -> S.MultiIf (map sGuardedRhs alts)
     Case _ e alts       -> S.Case (sExp e) (map sAlt alts)
     Do _ ss             -> S.Do (map sStmt ss)
     MDo _ ss            -> S.MDo (map sStmt ss)
@@ -510,7 +510,7 @@ sRPat rp = case rp of
 sPatField :: SrcInfo loc => PatField loc -> S.PatField
 sPatField pf = case pf of
     PFieldPat _ qn p    -> S.PFieldPat (sQName qn) (sPat p)
-    PFieldPun _ n       -> S.PFieldPun (sName n)
+    PFieldPun _ qn      -> S.PFieldPun (sQName qn)
     PFieldWildcard _    -> S.PFieldWildcard
 
 sStmt :: SrcInfo loc => Stmt loc -> S.Stmt
@@ -532,16 +532,8 @@ sQualStmt qs = case qs of
 sFieldUpdate :: SrcInfo loc => FieldUpdate loc -> S.FieldUpdate
 sFieldUpdate fu = case fu of
     FieldUpdate _ qn e      -> S.FieldUpdate (sQName qn) (sExp e)
-    FieldPun _ n            -> S.FieldPun (sName n)
+    FieldPun _ qn           -> S.FieldPun (sQName qn)
     FieldWildcard _         -> S.FieldWildcard
 
 sAlt :: SrcInfo loc => Alt loc -> S.Alt
-sAlt (Alt l p galts mbs) = S.Alt (getPointLoc l) (sPat p) (sGuardedAlts galts) (maybe (S.BDecls []) sBinds mbs)
-
-sGuardedAlts :: SrcInfo loc => GuardedAlts loc -> S.GuardedAlts
-sGuardedAlts galts = case galts of
-    UnGuardedAlt _ e    -> S.UnGuardedAlt (sExp e)
-    GuardedAlts  _ gs   -> S.GuardedAlts (map sGuardedAlt gs)
-
-sGuardedAlt :: SrcInfo loc => GuardedAlt loc -> S.GuardedAlt
-sGuardedAlt (GuardedAlt l ss e) = S.GuardedAlt (getPointLoc l) (map sStmt ss) (sExp e)
+sAlt (Alt l p galts mbs) = S.Alt (getPointLoc l) (sPat p) (sRhs galts) (maybe (S.BDecls []) sBinds mbs)

@@ -36,8 +36,7 @@ module Language.Haskell.Exts.Fixity
 
 import Language.Haskell.Exts.Syntax
 
-import Data.Char (isUpper)
-import Control.Monad (when, (<=<), liftM, liftM2, liftM3, liftM4)
+import Control.Monad (when, (<=<), liftM, liftM2, liftM3)
 import Data.Traversable (mapM)
 import Prelude hiding (mapM)
 import Data.Data hiding (Fixity)
@@ -59,7 +58,7 @@ class AppFixity ast where
 
 
 instance AppFixity Exp where
-  applyFixities fixs = infFix fixs <=< leafFix fixs
+  applyFixities fixs' = infFix fixs' <=< leafFix fixs'
     where -- This is the real meat case. We can assume a left-associative list to begin with.
           infFix fixs (InfixApp a op2 z) = do
               e <- infFix fixs a
@@ -77,7 +76,7 @@ instance AppFixity Exp where
           infFix _ e = return e
 
 instance AppFixity Pat where
-  applyFixities fixs = infFix fixs <=< leafFixP fixs
+  applyFixities fixs' = infFix fixs' <=< leafFixP fixs'
     where -- Same for patterns
           infFix fixs (PInfixApp a op2 z) = do
               p <- infFix fixs a
@@ -115,7 +114,7 @@ askFixityP xs qn = askFix xs (g qn)
 askFix :: [Fixity] -> QName -> (Assoc, Int)
 askFix xs = \k -> lookupWithDefault (AssocLeft, 9) k mp
     where
-        lookupWithDefault def k mp = case lookup k mp of
+        lookupWithDefault def k mp1 = case lookup k mp1 of
             Nothing -> def
             Just x  -> x
 
@@ -198,7 +197,7 @@ instance AppFixity Decl where
         InstDecl loc ctxt n ts idecls           -> liftM (InstDecl loc ctxt n ts) $ mapM fix idecls
         SpliceDecl loc spl      -> liftM (SpliceDecl loc) $ fix spl
         FunBind matches         -> liftM FunBind $ mapM fix matches
-        PatBind loc p mt rhs bs -> liftM3 (flip (PatBind loc) mt) (fix p) (fix rhs) (fix bs)
+        PatBind loc p rhs bs    -> liftM3 (PatBind loc) (fix p) (fix rhs) (fix bs)
         AnnPragma loc ann       -> liftM (AnnPragma loc) $ fix ann
         _                       -> return decl
       where fix x = applyFixities fixs x
@@ -247,7 +246,7 @@ instance AppFixity PatField where
     applyFixities _ pf = return pf
 
 instance AppFixity RPat where
-    applyFixities fixs rp = case rp of
+    applyFixities fixs rp' = case rp' of
         RPOp rp op          -> liftM (flip RPOp op) (fix rp)
         RPEither a b        -> liftM2 RPEither (fix a) (fix b)
         RPSeq rps           -> liftM RPSeq $ mapM fix rps
@@ -287,16 +286,6 @@ instance AppFixity Alt where
     applyFixities fixs (Alt loc p galts bs) = liftM3 (Alt loc) (fix p) (fix galts) (fix bs)
       where fix x = applyFixities fixs x
 
-instance AppFixity GuardedAlts where
-    applyFixities fixs galts = case galts of
-        UnGuardedAlt e      -> liftM UnGuardedAlt $ fix e
-        GuardedAlts  galts  -> liftM GuardedAlts $ mapM fix galts
-      where fix x = applyFixities fixs x
-
-instance AppFixity GuardedAlt where
-    applyFixities fixs (GuardedAlt loc stmts e) = liftM2 (GuardedAlt loc) (mapM fix stmts) (fix e)
-      where fix x = applyFixities fixs x
-
 instance AppFixity QualStmt where
     applyFixities fixs qstmt = case qstmt of
         QualStmt     s      -> liftM QualStmt $ fix s
@@ -327,7 +316,8 @@ instance AppFixity XAttr where
 -- Recursively fixes the "leaves" of the infix chains,
 -- without yet touching the chain itself. We assume all chains are
 -- left-associate to begin with.
-leafFix fixs e = case e of
+leafFix :: Monad m => [Fixity] -> Exp -> m Exp
+leafFix fixs e' = case e' of
     InfixApp e1 op e2       -> liftM2 (flip InfixApp op) (leafFix fixs e1) (fix e2)
     App e1 e2               -> liftM2 App (fix e1) (fix e2)
     NegApp e                -> liftM NegApp $ fix e
@@ -368,11 +358,12 @@ leafFix fixs e = case e of
     GenPragma s ab cd e     -> liftM (GenPragma s ab cd) (fix e)
     LCase alts              -> liftM LCase $ mapM fix alts
 
-    _                       -> return e
+    _                       -> return e'
   where
     fix x = applyFixities fixs x
 
-leafFixP fixs p = case p of
+leafFixP :: Monad m => [Fixity] -> Pat -> m Pat
+leafFixP fixs p' = case p' of
         PInfixApp p1 op p2    -> liftM2 (flip PInfixApp op) (leafFixP fixs p1) (fix p2)
         PNeg p                -> liftM PNeg $ fix p
         PApp n ps             -> liftM (PApp n) $ mapM fix ps
@@ -390,5 +381,5 @@ leafFixP fixs p = case p of
         PXPatTag p            -> liftM PXPatTag $ fix p
         PXRPats rps           -> liftM PXRPats $ mapM fix rps
         PBangPat p            -> liftM PBangPat $ fix p
-        _                     -> return p
+        _                     -> return p'
       where fix x = applyFixities fixs x

@@ -190,15 +190,15 @@ altGW :: SrcLoc -> Pat -> [Stmt] -> Exp -> Binds -> Alt
 altGW s p gs e w = Alt s p (gAlt s gs e) w
 
 -- | An unguarded righthand side of a @case@ alternative.
-unGAlt :: Exp -> GuardedAlts
-unGAlt = UnGuardedAlt
+unGAlt :: Exp -> Rhs
+unGAlt = UnGuardedRhs
 
 -- | An list of guarded righthand sides for a @case@ alternative.
-gAlts :: SrcLoc -> [([Stmt],Exp)] -> GuardedAlts
-gAlts s as = GuardedAlts $ map (\(gs,e) -> GuardedAlt s gs e) as
+gAlts :: SrcLoc -> [([Stmt],Exp)] -> Rhs
+gAlts s as = GuardedRhss $ map (\(gs,e) -> GuardedRhs s gs e) as
 
 -- | A single guarded righthand side for a @case@ alternative.
-gAlt :: SrcLoc -> [Stmt] -> Exp -> GuardedAlts
+gAlt :: SrcLoc -> [Stmt] -> Exp -> Rhs
 gAlt s gs e = gAlts s [(gs,e)]
 
 -- | A list expression.
@@ -266,13 +266,13 @@ simpleFun s f a e = let rhs = UnGuardedRhs e
 -- there are no guards and no 'where' clause.
 patBind :: SrcLoc -> Pat -> Exp -> Decl
 patBind s p e = let rhs = UnGuardedRhs e
-         in PatBind s p Nothing rhs noBinds
+         in PatBind s p rhs noBinds
 
 -- | A pattern bind where the pattern is a variable, and where
 -- there are no guards, but with a 'where' clause.
 patBindWhere :: SrcLoc -> Pat -> Exp -> [Decl] -> Decl
 patBindWhere s p e ds = let rhs = UnGuardedRhs e
-             in PatBind s p Nothing rhs (binds ds)
+             in PatBind s p rhs (binds ds)
 
 -- | Bind an identifier to an expression.
 nameBind :: SrcLoc -> Name -> Exp -> Decl

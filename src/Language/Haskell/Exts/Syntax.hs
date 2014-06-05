@@ -55,7 +55,7 @@ module Language.Haskell.Exts.Syntax (
     Type(..), Boxed(..), Kind(..), TyVarBind(..), Promoted(..), TypeEqn (..),
     -- * Expressions
     Exp(..), Stmt(..), QualStmt(..), FieldUpdate(..),
-    Alt(..), GuardedAlts(..), GuardedAlt(..), XAttr(..),
+    Alt(..), XAttr(..),
     -- * Patterns
     Pat(..), PatField(..), PXAttr(..), RPat(..), RPatOp(..),
     -- * Literals
@@ -86,9 +86,9 @@ module Language.Haskell.Exts.Syntax (
     unit_con, tuple_con, unboxed_singleton_con,
     -- ** Special identifiers
     as_name, qualified_name, hiding_name, minus_name, bang_name, dot_name, star_name,
-    export_name, safe_name, unsafe_name, threadsafe_name,
+    export_name, safe_name, unsafe_name, interruptible_name, threadsafe_name,
     stdcall_name, ccall_name, cplusplus_name, dotnet_name, jvm_name, js_name,
-    forall_name, family_name,
+    capi_name, forall_name, family_name,
     -- ** Type constructors
     unit_tycon_name, fun_tycon_name, list_tycon_name, tuple_tycon_name, unboxed_singleton_tycon_name,
     unit_tycon, fun_tycon, list_tycon, tuple_tycon, unboxed_singleton_tycon,
@@ -256,7 +256,7 @@ data Decl
      -- ^ A type signature declaration
      | FunBind      [Match]
      -- ^ A set of function binding clauses
-     | PatBind      SrcLoc Pat (Maybe Type) Rhs {-where-} Binds
+     | PatBind      SrcLoc Pat Rhs {-where-} Binds
      -- ^ A pattern binding
      | ForImp   SrcLoc CallConv Safety String Name Type
      -- ^ A foreign import declaration
@@ -370,14 +370,16 @@ data BangType
      | UnpackedTy Type  -- ^ unboxed component, marked with an UNPACK pragma
   deriving (Eq,Ord,Show,Typeable,Data,Generic)
 
--- | The right hand side of a function or pattern binding.
+-- | The right hand side of a function binding, pattern binding, or a case
+--   alternative.
 data Rhs
      = UnGuardedRhs Exp -- ^ unguarded right hand side (/exp/)
      | GuardedRhss  [GuardedRhs]
                         -- ^ guarded right hand side (/gdrhs/)
   deriving (Eq,Ord,Show,Typeable,Data,Generic)
 
--- | A guarded right hand side @|@ /stmts/ @=@ /exp/.
+-- | A guarded right hand side @|@ /stmts/ @=@ /exp/, or @|@ /stmts/ @->@ /exp/
+--   for case alternatives.
 --   The guard is a series of statements when using pattern guards,
 --   otherwise it will be a single qualifier expression.
 data GuardedRhs
@@ -479,7 +481,7 @@ data Exp
     | Lambda SrcLoc [Pat] Exp   -- ^ lambda expression
     | Let Binds Exp             -- ^ local declarations with @let@ ... @in@ ...
     | If Exp Exp Exp            -- ^ @if@ /exp/ @then@ /exp/ @else@ /exp/
-    | MultiIf [GuardedAlt]      -- ^ @if@ @|@ /exp/ @->@ /exp/ ...
+    | MultiIf [GuardedRhs]      -- ^ @if@ @|@ /exp/ @->@ /exp/ ...
     | Case Exp [Alt]            -- ^ @case@ /exp/ @of@ /alts/
     | Do [Stmt]                 -- ^ @do@-expression:
                                 --   the last statement in the list
@@ -676,7 +678,7 @@ data RPat
 -- | An /fpat/ in a labeled record pattern.
 data PatField
     = PFieldPat QName Pat       -- ^ ordinary label-pattern pair
-    | PFieldPun Name            -- ^ record field pun
+    | PFieldPun QName           -- ^ record field pun
     | PFieldWildcard            -- ^ record field wildcard
   deriving (Eq,Ord,Show,Typeable,Data,Generic)
 
@@ -709,26 +711,13 @@ data QualStmt
 -- | An /fbind/ in a labeled construction or update expression.
 data FieldUpdate
     = FieldUpdate QName Exp     -- ^ ordinary label-expresion pair
-    | FieldPun Name             -- ^ record field pun
+    | FieldPun QName            -- ^ record field pun
     | FieldWildcard             -- ^ record field wildcard
   deriving (Eq,Ord,Show,Typeable,Data,Generic)
 
 -- | An /alt/ alternative in a @case@ expression.
 data Alt
-    = Alt SrcLoc Pat GuardedAlts Binds
-  deriving (Eq,Ord,Show,Typeable,Data,Generic)
-
--- | The right-hand sides of a @case@ alternative,
---   which may be a single right-hand side or a
---   set of guarded ones.
-data GuardedAlts
-    = UnGuardedAlt Exp          -- ^ @->@ /exp/
-    | GuardedAlts  [GuardedAlt] -- ^ /gdpat/
-  deriving (Eq,Ord,Show,Typeable,Data,Generic)
-
--- | A guarded case alternative @|@ /stmts/ @->@ /exp/.
-data GuardedAlt
-    = GuardedAlt SrcLoc [Stmt] Exp
+    = Alt SrcLoc Pat Rhs Binds
   deriving (Eq,Ord,Show,Typeable,Data,Generic)
 
 -----------------------------------------------------------------------------
@@ -771,12 +760,13 @@ bang_name      = Symbol "!"
 dot_name       = Symbol "."
 star_name      = Symbol "*"
 
-export_name, safe_name, unsafe_name, threadsafe_name,
+export_name, safe_name, unsafe_name, interruptible_name, threadsafe_name,
   stdcall_name, ccall_name, cplusplus_name, dotnet_name,
-  jvm_name, js_name, forall_name, family_name :: Name
+  jvm_name, js_name, capi_name, forall_name, family_name :: Name
 export_name     = Ident "export"
 safe_name       = Ident "safe"
 unsafe_name     = Ident "unsafe"
+interruptible_name = Ident "interruptible"
 threadsafe_name = Ident "threadsafe"
 stdcall_name    = Ident "stdcall"
 ccall_name      = Ident "ccall"
@@ -784,6 +774,7 @@ cplusplus_name  = Ident "cplusplus"
 dotnet_name     = Ident "dotnet"
 jvm_name        = Ident "jvm"
 js_name         = Ident "js"
+capi_name       = Ident "capi"
 forall_name     = Ident "forall"
 family_name     = Ident "family"
 

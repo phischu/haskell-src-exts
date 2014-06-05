@@ -36,6 +36,7 @@ module Language.Haskell.Exts.ParseUtils (
     , checkClassBody        -- [ClassDecl] -> P [ClassDecl]
     , checkInstBody         -- [InstDecl] -> P [InstDecl]
     , checkUnQual           -- QName -> P Name
+    , checkQualOrUnQual     -- QName -> P QName
     , checkRevDecls         -- [Decl] -> P [Decl]
     , checkRevClsDecls      -- [ClassDecl] -> P [ClassDecl]
     , checkRevInstDecls     -- [InstDecl] -> P [InstDecl]
@@ -720,7 +721,7 @@ getGConName _ = fail "Expression in reification is not a name"
 -----------------------------------------------------------------------------
 -- Check Equation Syntax
 
-checkValDef :: L -> PExp L -> Maybe (S.Type L) -> Rhs L -> Maybe (Binds L) -> P (Decl L)
+checkValDef :: L -> PExp L -> Maybe (S.Type L, S) -> Rhs L -> Maybe (Binds L) -> P (Decl L)
 checkValDef l lhs optsig rhs whereBinds = do
     mlhs <- isFunLhs lhs []
     let whpt = srcInfoPoints l
@@ -736,7 +737,11 @@ checkValDef l lhs optsig rhs whereBinds = do
                 Just _  -> fail "Cannot give an explicit type signature to a function binding"
      Nothing     -> do
             lhs <- checkPattern lhs
-            return (PatBind l lhs optsig rhs whereBinds)
+            let lhs' = case optsig of
+                        Nothing -> lhs
+                        Just (ty, pt) -> let lp = (ann lhs <++> ann ty) <** [pt]
+                                         in PatTypeSig lp lhs ty
+            return (PatBind l lhs' rhs whereBinds)
 
 -- A variable binding is parsed as a PatBind.
 
@@ -785,8 +790,8 @@ checkInstBody decls = do
         checkInstMethodDef _ = return ()
 
 checkMethodDef :: Decl L -> P ()
-checkMethodDef (PatBind _ (PVar _ _) _ _ _) = return ()
-checkMethodDef (PatBind loc _ _ _ _) =
+checkMethodDef (PatBind _ (PVar _ _) _ _) = return ()
+checkMethodDef (PatBind loc _ _ _) =
     fail "illegal method definition" `atSrcLoc` fromSrcInfo loc
 checkMethodDef _ = return ()
 
@@ -798,6 +803,11 @@ checkUnQual :: QName L -> P (Name L)
 checkUnQual (Qual  _ _ _) = fail "Illegal qualified name"
 checkUnQual (UnQual  _ n) = return n
 checkUnQual (Special _ _) = fail "Illegal special name"
+
+checkQualOrUnQual :: QName L -> P (QName L)
+checkQualOrUnQual n@(Qual  _ _ _) = return n
+checkQualOrUnQual n@(UnQual  _ _) = return n
+checkQualOrUnQual (Special _ _)   = fail "Illegal special name"
 
 -----------------------------------------------------------------------------
 -- Check that two xml tag names are equal

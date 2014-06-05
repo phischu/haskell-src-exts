@@ -248,7 +248,7 @@ Reserved Ids
 >       'newtype'       { Loc $$ KW_NewType }
 >       'of'            { Loc $$ KW_Of }
 >       'proc'          { Loc $$ KW_Proc }     -- arrows
->       'rec'           { Loc $$ KW_Rec }      -- arrows
+>       'rec'           { Loc $$ KW_Rec }      -- arrows or RecursiveDo
 >       'then'          { Loc $$ KW_Then }
 >       'type'          { Loc $$ KW_Type }     -- 120
 >       'using'         { Loc $$ KW_Using }    -- transform list comprehensions
@@ -1171,12 +1171,12 @@ Associated types require the TypeFamilies extension enabled.
 Value definitions
 
 > valdef :: { Decl L }
->       : exp0b optsig rhs optwhere     {% checkValDef (($1 <> $3 <+?> (fmap ann) (fst $4)) <** (snd $2 ++ snd $4)) $1 (fst $2) $3 (fst $4) }
+>       : exp0b optsig rhs optwhere     {% checkValDef (($1 <> $3 <+?> (fmap ann) (fst $4)) <** (snd $4)) $1 $2 $3 (fst $4) }
 >       | '!' aexp rhs optwhere         {% do { checkEnabled BangPatterns ;
 >                                               let { l = nIS $1 <++> ann $2 <** [$1] };
 >                                               p <- checkPattern (BangPat l $2);
 >                                               return $ PatBind (p <> $3 <+?> (fmap ann) (fst $4) <** snd $4)
->                                                           p Nothing $3 (fst $4) } }
+>                                                           p $3 (fst $4) } }
 
 May bind implicit parameters
 > optwhere :: { (Maybe (Binds L),[S]) }
@@ -1185,9 +1185,9 @@ May bind implicit parameters
 
 Type signatures on value definitions require ScopedTypeVariables (or PatternSignatures, which is deprecated).
 
-> optsig :: { (Maybe (Type L),[S]) }
->       : '::' truectype                {% checkEnabled ScopedTypeVariables >> return (Just $2, [$1]) }
->       | {- empty -}                   { (Nothing,[]) }
+> optsig :: { (Maybe (Type L, S)) }
+>       : '::' truectype                {% checkEnabled ScopedTypeVariables >> return (Just ($2, $1)) }
+>       | {- empty -}                   { Nothing }
 
 > rhs   :: { Rhs L }
 >       : '=' trueexp                   { UnGuardedRhs (nIS $1 <++> ann $2 <** [$1]) $2 }
@@ -1447,6 +1447,7 @@ Hsx Extensions - requires XmlSyntax, but the lexer handles all that.
 >       | 'export'                      { Loc $1 "export" }
 >       | 'safe'                        { Loc $1 "safe" }
 >       | 'unsafe'                      { Loc $1 "unsafe" }
+>       | 'interruptible'               { Loc $1 "interruptible" }
 >       | 'threadsafe'                  { Loc $1 "threadsafe" }
 >       | 'stdcall'                     { Loc $1 "stdcall" }
 >       | 'ccall'                       { Loc $1 "ccall" }
@@ -1454,6 +1455,7 @@ Hsx Extensions - requires XmlSyntax, but the lexer handles all that.
 >       | 'dotnet'                      { Loc $1 "dotnet" }
 >       | 'jvm'                         { Loc $1 "jvm" }
 >       | 'js'                          { Loc $1 "js" }
+>       | 'capi'                        { Loc $1 "capi" }
 >       | 'as'                          { Loc $1 "as" }
 >       | 'by'                          { Loc $1 "by" }
 >       | 'case'                        { Loc $1 "case" }
@@ -1567,32 +1569,32 @@ Case alternatives
 > alt :: { Alt L }
 >       : pat ralt optwhere             { Alt ($1 <> $2 <+?> (fmap ann) (fst $3) <** snd $3) $1 $2 (fst $3) }
 
-> ralt :: { GuardedAlts L }
->       : '->' trueexp                  { UnGuardedAlt (nIS $1 <++> ann $2 <** [$1]) $2 }
->       | gdpats                        { GuardedAlts  (snd $1) (reverse $ fst $1) }
+> ralt :: { Rhs L }
+>       : '->' trueexp                  { UnGuardedRhs (nIS $1 <++> ann $2 <** [$1]) $2 }
+>       | gdpats                        { GuardedRhss  (snd $1) (reverse $ fst $1) }
 
-> gdpats :: { ([GuardedAlt L],L) }
+> gdpats :: { ([GuardedRhs L],L) }
 >       : gdpats gdpat                  { ($2 : fst $1, snd $1 <++> ann $2) }
 >       | gdpat                         { ([$1], ann $1) }
  
 A guard can be a pattern guard if PatternGuards is enabled, hence quals instead of exp0.
-> gdpat :: { GuardedAlt L }
+> gdpat :: { GuardedRhs L }
 >       : '|' quals '->' trueexp {% do { checkPatternGuards (fst $2);
 >                                        let {l = nIS $1 <++> ann $4 <** ($1:snd $2 ++ [$3])};
->                                        return (GuardedAlt l (reverse (fst $2)) $4) } }
+>                                        return (GuardedRhs l (reverse (fst $2)) $4) } }
 
 > pat :: { Pat L }
 >       : exp                           {% checkPattern $1 }
 >       | '!' aexp                      {% checkPattern (BangPat (nIS $1 <++> ann $2 <** [$1]) $2) }
 
-> ifaltslist :: { ([GuardedAlt L], L, [S]) }
+> ifaltslist :: { ([GuardedRhs L], L, [S]) }
 >       : '{'  ifalts '}'                 { (fst $2, $1 <^^> $3, $1:snd $2 ++ [$3])  }
 >       | open ifalts close               { (fst $2, $1 <^^> $3, $1:snd $2 ++ [$3]) }
 
-> ifalts :: { ([GuardedAlt L], [S]) }
+> ifalts :: { ([GuardedRhs L], [S]) }
 >       : optsemis ifalts1 optsemis       { (reverse $ fst $2, $1 ++ snd $2 ++ $3) }
 
-> ifalts1 :: { ([GuardedAlt L], [S]) }
+> ifalts1 :: { ([GuardedRhs L], [S]) }
 >       : ifalts1 optsemis gdpat           { ($3 : fst $1, snd $1 ++ $2) }
 >       | gdpat                            { ([$1], []) }
 
@@ -1636,7 +1638,7 @@ Puns and wild cards need the respective extensions enabled.
 
 > fbind :: { PFieldUpdate L }
 >       : qvar '=' exp                  { FieldUpdate ($1 <>$3 <** [$2]) $1 $3 }
->       | qvar                          {% checkEnabled NamedFieldPuns >> checkUnQual $1 >>= return . FieldPun (ann $1) }
+>       | qvar                          {% checkEnabled NamedFieldPuns >> checkQualOrUnQual $1 >>= return . FieldPun (ann $1) }
 >       | '..'                          {% checkEnabled RecordWildCards >> return (FieldWildcard (nIS $1)) }
 
 -----------------------------------------------------------------------------
@@ -1743,11 +1745,13 @@ Identifiers and Symbols
 >       | 'dotnet'              { dotnet_name    (nIS $1) }
 >       | 'jvm'                 { jvm_name       (nIS $1) }
 >       | 'js'                  { js_name        (nIS $1) }
+>       | 'capi'                { capi_name      (nIS $1) }
 
 > varid :: { Name L }
 >       : varid_no_safety       { $1 }
 >       | 'safe'                { safe_name       (nIS $1) }
 >       | 'unsafe'              { unsafe_name     (nIS $1) }
+>       | 'interruptible'       { interruptible_name (nIS $1) }
 >       | 'threadsafe'          { threadsafe_name (nIS $1) }
 >	| 'forall'		{ forall_name	  (nIS $1) }
 >	| 'family'		{ family_name     (nIS $1) }
