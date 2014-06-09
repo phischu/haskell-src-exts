@@ -1063,6 +1063,13 @@ instance ExactP ClassDecl where
             printStringAt (pos b) "="
             exactPC t2
          _ -> errorEP "ExactP: ClassDecl: ClsTyDef is given too few srcInfoPoints"
+    ClsDefSig  l d  ->
+        case srcInfoPoints l of
+         _:_ -> do
+            printString "default"
+            exactPC d
+         _ -> errorEP "ExactP: ClassDecl: ClsDefSig is given too few srcInfoPoints"
+
 
 instance ExactP InstDecl where
   exactP idecl = case idecl of

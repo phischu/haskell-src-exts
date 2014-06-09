@@ -583,6 +583,10 @@ instance Pretty ClassDecl where
                 markLine loc $
                 mySep [text "type", pretty ntype, equals, pretty htype]
 
+    pretty (ClsDefSig loc decl) =
+                markLine loc $
+                mySep [text "default", pretty decl]
+
 instance Pretty InstDecl where
         pretty (InsDecl decl) = pretty decl
 
