@@ -44,6 +44,7 @@ module Language.Haskell.Exts.ParseUtils (
     , checkDataOrNewG       -- DataOrNew -> [GadtDecl] -> P ()
     , checkSimpleType       -- PType -> P (Name, [TyVarBind])
     , checkSigVar           -- PExp -> P Name
+    , checkDefSigDef        -- Decl -> P Decl
     , getGConName           -- S.Exp -> P QName
     , mkTyForall            -- Maybe [TyVarBind] -> PContext -> PType -> PType
     -- HaRP
@@ -799,6 +800,13 @@ checkMethodDef (PatBind _ (PVar _ _) _ _) = return ()
 checkMethodDef (PatBind loc _ _ _) =
     fail "illegal method definition" `atSrcLoc` fromSrcInfo loc
 checkMethodDef _ = return ()
+
+checkDefSigDef :: Decl L -> P (Decl L)
+checkDefSigDef d@(TypeSig _ [_] _) = return d
+checkDefSigDef (TypeSig _ _ _) =
+    fail "default signature must be for a single name"
+checkDefSigDef _ =
+    fail "default signature must be a type signature"
 
 -----------------------------------------------------------------------------
 -- Check that an identifier or symbol is unqualified.
