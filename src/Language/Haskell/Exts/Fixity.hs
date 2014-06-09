@@ -221,6 +221,7 @@ instance AppFixity Annotation where
 
 instance AppFixity ClassDecl where
     applyFixities fixs (ClsDecl decl) = liftM ClsDecl $ applyFixities fixs decl
+    applyFixities fixs (ClsDefSig loc decl) = liftM (ClsDefSig loc) $ applyFixities fixs decl
     applyFixities _ cdecl = return cdecl
 
 instance AppFixity InstDecl where
