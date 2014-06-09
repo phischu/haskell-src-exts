@@ -60,7 +60,7 @@ fromParseResult (ParseFailed loc str) = error $ "fromParseResult: Parse failed a
 
 instance Functor ParseResult where
   fmap f (ParseOk x)           = ParseOk $ f x
-  fmap f (ParseFailed loc msg) = ParseFailed loc msg
+  fmap _ (ParseFailed loc msg) = ParseFailed loc msg
 
 instance Applicative ParseResult where
   pure = ParseOk
@@ -76,7 +76,7 @@ instance Monad ParseResult where
 instance Monoid m => Monoid (ParseResult m) where
   mempty = ParseOk mempty
   ParseOk x `mappend` ParseOk y = ParseOk $ x `mappend` y
-  ParseOk x `mappend` err       = err
+  ParseOk _ `mappend` err       = err
   err       `mappend` _         = err -- left-biased
 
 
@@ -146,14 +146,14 @@ defaultParseMode = ParseMode {
 data InternalParseMode = IParseMode {
         iParseFilename :: String,
         iExtensions :: [KnownExtension],
-        iIgnoreLanguagePragmas :: Bool,
-        iIgnoreLinePragmas :: Bool,
-        iFixities :: Maybe [Fixity]
+        -- iIgnoreLanguagePragmas :: Bool,
+        iIgnoreLinePragmas :: Bool
+        -- iFixities :: Maybe [Fixity]
     }
 
 toInternalParseMode :: ParseMode -> InternalParseMode
-toInternalParseMode (ParseMode pf bLang exts ilang iline fx) =
-    IParseMode pf (impliesExts $ toExtensionList bLang exts) ilang iline fx
+toInternalParseMode (ParseMode pf bLang exts _ilang iline _fx) =
+    IParseMode pf (impliesExts $ toExtensionList bLang exts) {-_ilang -} iline {- _fx -}
 
 
 -- | Monad for parsing
@@ -250,7 +250,7 @@ pushCurrentContext = do
     pushContext (Layout loc)
 
 currentIndent :: P Int
-currentIndent = P $ \_r _x _y loc stk _mode -> Ok stk (indentOfParseState stk)
+currentIndent = P $ \_r _x _y _ stk _mode -> Ok stk (indentOfParseState stk)
 
 pushContext :: LexContext -> P ()
 pushContext ctxt =
@@ -264,7 +264,7 @@ popContext = P $ \_i _x _y loc stk _m ->
                           Ok (s, e, p, c) ()
         ([],_,_,_)     -> Failed loc "Unexpected }" -- error "Internal error: empty context in popContext"
 
-
+{-
 -- HaRP/Hsx
 pushExtContext :: ExtContext -> P ()
 pushExtContext ctxt = P $ \_i _x _y _l (s, e, p, c) _m -> Ok (s, ctxt:e, p, c) ()
@@ -275,7 +275,7 @@ popExtContext = P $ \_i _x _y _l (s, e, p, c) _m ->
      (_:e') ->
        Ok (s, e', p, c) ()
      [] -> error "Internal error: empty context in popExtContext"
-
+-}
 
 -- Extension-aware lexing/parsing
 getExtensions :: P [KnownExtension]
@@ -416,7 +416,7 @@ pushContextL ctxt = Lex $ \cont -> P $ \r x y loc (stk, e, pst, cs) ->
         runP (cont ()) r x y loc (ctxt:stk, e, pst, cs)
 
 popContextL :: String -> Lex a ()
-popContextL fn = Lex $ \cont -> P $ \r x y loc stk m -> case stk of
+popContextL _ = Lex $ \cont -> P $ \r x y loc stk m -> case stk of
         (_:ctxt, e, pst, cs) -> runP (cont ()) r x y loc (ctxt, e, pst, cs) m
         ([], _, _, _)        -> Failed loc "Unexpected }"
 
@@ -426,7 +426,7 @@ pullCtxtFlag = Lex $ \cont -> P $ \r x y loc (ct, e, (d,c), cs) ->
 
 
 flagDo :: Lex a ()
-flagDo = Lex $ \cont -> P $ \r x y loc (ct, e, (d,c), cs) ->
+flagDo = Lex $ \cont -> P $ \r x y loc (ct, e, (_,c), cs) ->
         runP (cont ()) r x y loc (ct, e, (True,c), cs)
 
 
@@ -444,7 +444,7 @@ pushExtContextL ec = Lex $ \cont -> P $ \r x y loc (s, e, p, c) ->
         runP (cont ()) r x y loc (s, ec:e, p, c)
 
 popExtContextL :: String -> Lex a ()
-popExtContextL fn = Lex $ \cont -> P $ \r x y loc stk@(s,e,p,c) m -> case e of
+popExtContextL fn = Lex $ \cont -> P $ \r x y loc (s,e,p,c) m -> case e of
             (_:ec) -> runP (cont ()) r x y loc (s,ec,p,c) m
             []       -> Failed loc ("Internal error: empty tag context in " ++ fn)
 
