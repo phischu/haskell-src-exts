@@ -406,6 +406,8 @@ data ClassDecl l
             -- ^ declaration of an associated type synonym
     | ClsTyDef   l (Type l) (Type l)
             -- ^ default choice for an associated type synonym
+    | ClsDefSig  l (Decl l)
+            -- ^ default signature
   deriving (Eq,Ord,Show,Typeable,Data,Foldable,Traversable,Functor,Generic)
 
 -- | Declarations inside an instance declaration.
