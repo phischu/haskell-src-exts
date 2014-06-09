@@ -1144,10 +1144,12 @@ instance Annotated ClassDecl where
     ann (ClsDataFam l _ _ _)  = l
     ann (ClsTyFam   l    _ _) = l
     ann (ClsTyDef   l _ _)    = l
+    ann (ClsDefSig  l _)      = l
     amap f (ClsDecl    l d) = ClsDecl (f l) d
     amap f (ClsDataFam l mcx dh mk) = ClsDataFam (f l) mcx dh mk
     amap f (ClsTyFam   l     dh mk) = ClsTyFam   (f l)     dh mk
     amap f (ClsTyDef   l t1 t2) = ClsTyDef (f l) t1 t2
+    amap f (ClsDefSig  l d) = ClsDefSig (f l) d
 
 instance Annotated InstDecl where
     ann id = case id of
