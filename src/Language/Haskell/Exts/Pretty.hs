@@ -583,9 +583,14 @@ instance Pretty ClassDecl where
                 markLine loc $
                 mySep [text "type", pretty ntype, equals, pretty htype]
 
-    pretty (ClsDefSig loc decl) =
+    pretty (ClsDefSig loc (TypeSig _ nameList qualType)) =
+                blankline $
                 markLine loc $
-                mySep [text "default", pretty decl]
+                mySep (
+                    text "default" :
+                    (punctuate comma . map pretty $ nameList) ++
+                    [text "::", pretty qualType])
+    pretty _ = error "default signature not a type signature"
 
 instance Pretty InstDecl where
         pretty (InsDecl decl) = pretty decl
