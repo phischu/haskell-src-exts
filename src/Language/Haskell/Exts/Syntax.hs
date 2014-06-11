@@ -348,7 +348,7 @@ data ClassDecl
             -- ^ declaration of an associated type synonym
     | ClsTyDef   SrcLoc Type    Type
             -- ^ default choice for an associated type synonym
-    | ClsDefSig  SrcLoc Decl
+    | ClsDefSig  SrcLoc Name Type
             -- ^ default signature
   deriving (Eq,Ord,Show,Typeable,Data,Generic)
 

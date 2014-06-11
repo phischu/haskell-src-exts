@@ -801,8 +801,9 @@ checkMethodDef (PatBind loc _ _ _) =
     fail "illegal method definition" `atSrcLoc` fromSrcInfo loc
 checkMethodDef _ = return ()
 
-checkDefSigDef :: Decl L -> P (Decl L)
-checkDefSigDef d@(TypeSig _ [_] _) = return d
+checkDefSigDef :: Decl L -> P (Name L,S.Type L,S)
+checkDefSigDef (TypeSig loc [name] typ) =
+  let (b:_) = srcInfoPoints loc in return (name,typ,b)
 checkDefSigDef (TypeSig _ _ _) =
     fail "default signature must be for a single name"
 checkDefSigDef _ =
